@@ -1,0 +1,13 @@
+{
+  "name": "equipment-journal",
+  "version": "1.0.0",
+  "description": "Telegram bot for voice logging of security rounds",
+  "main": "worker.js",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "keywords": ["telegram", "cloudflare-workers", "gemini"],
+  "author": "",
+  "license": "MIT"
+}

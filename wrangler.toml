@@ -1,0 +1,8 @@
+name = "equipment-journal-worker"
+main = "worker.js"
+compatibility_date = "2025-12-09"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "equipment_journal"
+database_id = "271ecb9c-9385-4cfb-a9d7-67b4c8746b7b"
