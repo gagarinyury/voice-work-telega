@@ -231,20 +231,20 @@
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 12%;">Фамилия</th>
-                            <th style="width: 10%;">Дата</th>
-                            <th style="width: 18%;">Переданные вещи</th>
-                            <th style="width: 20%;">Время обходов</th>
-                            <th style="width: 30%;">События</th>
-                            <th style="width: 10%;">Подпись</th>
+                            <th style="width: 10%;">Фамилия</th>
+                            <th style="width: 8%;">Дата</th>
+                            <th style="width: 16%;">Переданные вещи</th>
+                            <th style="width: 16%;">Время обходов</th>
+                            <th style="width: 38%;">События</th>
+                            <th style="width: 12%;">Подпись</th>
                         </tr>
                     </thead>
                     <tbody>
             `;
 
             entries.forEach(entry => {
-                const roundsText = entry.rounds && entry.rounds.length > 0
-                    ? entry.rounds.join(', ')
+                const roundsHtml = entry.rounds && entry.rounds.length > 0
+                    ? entry.rounds.map(time => time).join('<br>')
                     : '—';
 
                 const eventsHtml = entry.events && entry.events.length > 0
@@ -276,7 +276,7 @@
                         <td class="surname-cell">${escapeHtml(entry.surname)}</td>
                         <td class="date-cell">${formatDate(entry.date)}</td>
                         <td class="items-cell">${itemsHtml}</td>
-                        <td class="rounds-cell">${escapeHtml(roundsText)}</td>
+                        <td class="rounds-cell">${roundsHtml}</td>
                         <td class="events-cell">${eventsHtml}</td>
                         <td class="signature-cell">✅ Telegram</td>
                     </tr>
