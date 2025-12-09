@@ -22,3 +22,10 @@ CREATE TABLE IF NOT EXISTS journal (
 -- Index for faster queries
 CREATE INDEX IF NOT EXISTS idx_journal_date ON journal(date DESC);
 CREATE INDEX IF NOT EXISTS idx_journal_telegram_id ON journal(telegram_id);
+
+-- Rate limiting table
+CREATE TABLE IF NOT EXISTS rate_limits (
+  telegram_id INTEGER PRIMARY KEY,
+  request_count INTEGER DEFAULT 0,
+  window_start DATETIME DEFAULT CURRENT_TIMESTAMP
+);

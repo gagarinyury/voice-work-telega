@@ -231,10 +231,12 @@
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 15%;">Фамилия</th>
-                            <th style="width: 12%;">Дата</th>
-                            <th style="width: 25%;">Время обходов</th>
-                            <th style="width: 48%;">События</th>
+                            <th style="width: 12%;">Фамилия</th>
+                            <th style="width: 10%;">Дата</th>
+                            <th style="width: 18%;">Переданные вещи</th>
+                            <th style="width: 20%;">Время обходов</th>
+                            <th style="width: 30%;">События</th>
+                            <th style="width: 10%;">Подпись</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -251,12 +253,32 @@
                     ).join('')
                     : '—';
 
+                // Parse items (equipment)
+                let items = { pults: true, tablet: true, keys: true, phone: true, ts_button: true };
+                try {
+                    if (entry.items) {
+                        items = typeof entry.items === 'string' ? JSON.parse(entry.items) : entry.items;
+                    }
+                } catch (e) {}
+
+                const itemsHtml = `
+                    <div class="items-list">
+                        ${items.pults ? '☑' : '☐'} Пульты (2 шт)<br>
+                        ${items.tablet ? '☑' : '☐'} Планшет<br>
+                        ${items.keys ? '☑' : '☐'} Ключи (2 шт)<br>
+                        ${items.phone ? '☑' : '☐'} Телефон<br>
+                        ${items.ts_button ? '☑' : '☐'} Кнопка TS
+                    </div>
+                `;
+
                 html += `
                     <tr>
                         <td class="surname-cell">${escapeHtml(entry.surname)}</td>
                         <td class="date-cell">${formatDate(entry.date)}</td>
+                        <td class="items-cell">${itemsHtml}</td>
                         <td class="rounds-cell">${escapeHtml(roundsText)}</td>
                         <td class="events-cell">${eventsHtml}</td>
+                        <td class="signature-cell">✅ Telegram</td>
                     </tr>
                 `;
             });
