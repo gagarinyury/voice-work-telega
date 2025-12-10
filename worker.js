@@ -8,7 +8,7 @@ const JOURNAL_SCHEMA = {
   properties: {
     rounds: {
       type: "array",
-      description: "List of round times in HH:MM format",
+      description: "List of round intervals (start time only). Bot will auto-add +10min for end time",
       items: { type: "string" }
     },
     events: {
@@ -31,6 +31,44 @@ const JOURNAL_SCHEMA = {
     }
   },
   required: ["rounds", "events"]
+};
+
+// JSON Schema for voice command recognition
+const VOICE_COMMAND_SCHEMA = {
+  type: "object",
+  properties: {
+    commandType: {
+      type: "string",
+      enum: ["edit", "delete", "add_journal"],
+      description: "Type of command: edit (modify existing entry), delete (remove entry), add_journal (new journal entry)"
+    },
+    entryIndex: {
+      type: "number",
+      description: "Entry index number (1, 2, 3, etc.) for edit/delete commands"
+    },
+    action: {
+      type: "string",
+      enum: ["add_rounds", "remove_rounds", "add_events", "remove_events", "replace_rounds", "replace_events"],
+      description: "What to do: add/remove/replace rounds or events"
+    },
+    rounds: {
+      type: "array",
+      items: { type: "string" },
+      description: "Round times to add/remove/replace (HH:MM format)"
+    },
+    events: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          time: { type: "string" },
+          description: { type: "string" }
+        }
+      },
+      description: "Events to add/remove"
+    }
+  },
+  required: ["commandType"]
 };
 
 export default {
@@ -84,6 +122,13 @@ export default {
 async function handleTelegramWebhook(request, env) {
   try {
     const update = await request.json();
+
+    // Handle callback queries (button clicks)
+    if (update.callback_query) {
+      await handleCallbackQuery(update.callback_query, env);
+      return new Response('OK', { status: 200 });
+    }
+
     const telegramId = update.message?.from?.id;
     const chatId = update.message?.chat?.id;
 
@@ -102,6 +147,22 @@ async function handleTelegramWebhook(request, env) {
     // Handle /start command - user registration
     else if (update.message?.text?.startsWith('/start')) {
       await handleStartCommand(update.message, env);
+    }
+    // Handle /delete command - delete today's entry
+    else if (update.message?.text?.startsWith('/delete')) {
+      await handleDeleteCommand(update.message, env);
+    }
+    // Handle /list command - show recent entries
+    else if (update.message?.text?.startsWith('/list')) {
+      await handleListCommand(update.message, env);
+    }
+    // Handle /edit command - edit entry
+    else if (update.message?.text?.startsWith('/edit')) {
+      await handleEditCommand(update.message, env);
+    }
+    // Handle /help command - show instructions
+    else if (update.message?.text?.startsWith('/help')) {
+      await handleHelpCommand(update.message, env);
     }
     // Handle text message - surname registration or journal entry
     else if (update.message?.text) {
@@ -182,7 +243,27 @@ async function handleStartCommand(message, env) {
   if (existing) {
     await sendTelegramMessage(
       chatId,
-      `Вы уже зарегистрированы как: ${existing.surname}\n\nПросто отправьте голосовое сообщение с информацией об обходах и событиях.`,
+      `Вы уже зарегистрированы как: ${existing.surname}
+
+🎙️ Это голосовой бот! Отправьте голосовое сообщение с обходами и событиями.
+
+Пример: "Обходы девять десять, двенадцать пятнадцать. Садовники приехали семь ноль пять"
+
+Или используйте /help для полной инструкции.`,
+      env
+    );
+    return;
+  }
+
+  // Check max users limit (4 users max)
+  const usersCount = await env.DB.prepare(
+    'SELECT COUNT(*) as count FROM users'
+  ).first();
+
+  if (usersCount.count >= 4) {
+    await sendTelegramMessage(
+      chatId,
+      '❌ Регистрация закрыта.\n\nДостигнут лимит пользователей (4).\n\nОбратитесь к администратору.',
       env
     );
     return;
@@ -190,9 +271,290 @@ async function handleStartCommand(message, env) {
 
   await sendTelegramMessage(
     chatId,
-    'Добро пожаловать! Введите вашу фамилию для регистрации:',
+    `🎙️ Добро пожаловать в голосовой журнал обходов!
+
+Введите вашу фамилию для регистрации:`,
     env
   );
+}
+
+/**
+ * Handle /help command - show instructions
+ */
+async function handleHelpCommand(message, env) {
+  const chatId = message.chat.id;
+
+  const helpText = `🎙️ ГОЛОСОВОЙ БОТ ЖУРНАЛА ОБХОДОВ
+
+Этот бот работает преимущественно с голосовыми сообщениями!
+
+📋 ОСНОВНЫЕ КОМАНДЫ:
+
+/start - Регистрация (введите фамилию)
+/help - Показать эту справку
+/list - Показать последние 5 записей
+/edit - Редактировать запись (выбор кнопками)
+/delete [дата] - Удалить запись
+
+🎤 ГОЛОСОВОЕ УПРАВЛЕНИЕ:
+
+1️⃣ Создание записи:
+"Обходы девять десять, двенадцать пятнадцать. Садовники приехали семь ноль пять"
+
+2️⃣ Редактирование голосом:
+"Измени запись два, убери время двадцать один двадцать"
+"Добавь к записи один обход девять тридцать"
+"Удали запись три"
+
+После голосовой команды редактирования бот покажет что изменится и попросит подтвердить кнопками Да/Нет.
+
+💡 ПОДСКАЗКИ:
+
+• Можно использовать текст вместо голоса
+• Запись обновляется если отправить данные повторно за тот же день
+• В таблице показываются все записи всех охранников
+
+📊 Таблица доступна на сайте (ссылка у администратора)`;
+
+  await sendTelegramMessage(chatId, helpText, env);
+}
+
+/**
+ * Handle /list command - show recent entries
+ */
+async function handleListCommand(message, env) {
+  const telegramId = message.from.id;
+  const chatId = message.chat.id;
+
+  // Check if user is registered
+  const user = await env.DB.prepare(
+    'SELECT surname FROM users WHERE telegram_id = ?'
+  ).bind(telegramId).first();
+
+  if (!user) {
+    await sendTelegramMessage(
+      chatId,
+      'Сначала зарегистрируйтесь: отправьте /start',
+      env
+    );
+    return;
+  }
+
+  // Get last 5 entries for this user
+  const { results } = await env.DB.prepare(`
+    SELECT id, date, rounds, events
+    FROM journal
+    WHERE telegram_id = ?
+    ORDER BY date DESC, created_at DESC
+    LIMIT 5
+  `).bind(telegramId).all();
+
+  if (results.length === 0) {
+    await sendTelegramMessage(
+      chatId,
+      '📋 У вас пока нет записей',
+      env
+    );
+    return;
+  }
+
+  let message_text = '📋 Ваши последние записи:\n\n';
+  results.forEach((entry, index) => {
+    const rounds = JSON.parse(entry.rounds || '[]');
+    const events = JSON.parse(entry.events || '[]');
+
+    message_text += `${index + 1}. ${entry.date} (ID: ${entry.id})\n`;
+    message_text += `   Интервалов обходов: ${rounds.length}\n`;
+    message_text += `   События: ${events.length}\n\n`;
+  });
+
+  message_text += 'Для удаления: /delete <дата>\nНапример: /delete 09.12.2025\n\n';
+  message_text += 'Для редактирования: /edit';
+
+  await sendTelegramMessage(chatId, message_text, env);
+}
+
+/**
+ * Handle /delete command - delete entry
+ */
+async function handleDeleteCommand(message, env) {
+  const telegramId = message.from.id;
+  const chatId = message.chat.id;
+  const text = message.text.trim();
+
+  // Check if user is registered
+  const user = await env.DB.prepare(
+    'SELECT surname FROM users WHERE telegram_id = ?'
+  ).bind(telegramId).first();
+
+  if (!user) {
+    await sendTelegramMessage(
+      chatId,
+      'Сначала зарегистрируйтесь: отправьте /start',
+      env
+    );
+    return;
+  }
+
+  // Parse date from command: /delete 09.12.2025 or /delete (today)
+  const parts = text.split(' ');
+  let dateToDelete;
+
+  if (parts.length === 1) {
+    // No date provided - delete today
+    dateToDelete = new Date().toISOString().split('T')[0];
+  } else {
+    // Parse date DD.MM.YYYY
+    const dateStr = parts[1];
+    const dateParts = dateStr.split('.');
+    if (dateParts.length === 3) {
+      const [day, month, year] = dateParts;
+      dateToDelete = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    } else {
+      await sendTelegramMessage(
+        chatId,
+        '❌ Неверный формат даты.\n\nИспользуйте: /delete ДД.ММ.ГГГГ\nНапример: /delete 09.12.2025\n\nИли просто /delete для удаления сегодняшней записи',
+        env
+      );
+      return;
+    }
+  }
+
+  // Delete entry
+  const result = await env.DB.prepare(
+    'DELETE FROM journal WHERE telegram_id = ? AND date = ?'
+  ).bind(telegramId, dateToDelete).run();
+
+  if (result.meta.changes > 0) {
+    await sendTelegramMessage(
+      chatId,
+      `✅ Запись за ${dateToDelete} удалена`,
+      env
+    );
+  } else {
+    await sendTelegramMessage(
+      chatId,
+      `❌ Записей за ${dateToDelete} не найдено`,
+      env
+    );
+  }
+}
+
+/**
+ * Handle /edit command - show list with buttons
+ */
+async function handleEditCommand(message, env) {
+  const telegramId = message.from.id;
+  const chatId = message.chat.id;
+
+  // Check if user is registered
+  const user = await env.DB.prepare(
+    'SELECT surname FROM users WHERE telegram_id = ?'
+  ).bind(telegramId).first();
+
+  if (!user) {
+    await sendTelegramMessage(
+      chatId,
+      'Сначала зарегистрируйтесь: отправьте /start',
+      env
+    );
+    return;
+  }
+
+  // Get last 3 entries
+  const { results } = await env.DB.prepare(`
+    SELECT id, date, rounds, events
+    FROM journal
+    WHERE telegram_id = ?
+    ORDER BY date DESC, created_at DESC
+    LIMIT 3
+  `).bind(telegramId).all();
+
+  if (results.length === 0) {
+    await sendTelegramMessage(
+      chatId,
+      '📋 У вас пока нет записей',
+      env
+    );
+    return;
+  }
+
+  // Create message with buttons
+  let message_text = '✏️ Выберите запись для редактирования:\n\n';
+
+  const buttons = [];
+  results.forEach((entry, index) => {
+    const rounds = JSON.parse(entry.rounds || '[]');
+    const events = JSON.parse(entry.events || '[]');
+
+    message_text += `${index + 1}. ${entry.date}\n`;
+    message_text += `   Обходов: ${rounds.length}, События: ${events.length}\n\n`;
+
+    buttons.push([{
+      text: `📅 ${entry.date}`,
+      callback_data: `edit_${entry.date}`
+    }]);
+  });
+
+  await sendTelegramMessageWithButtons(chatId, message_text, buttons, env);
+}
+
+/**
+ * Handle partial edit (only rounds or only events)
+ */
+async function handlePartialEdit(telegramId, surname, field, text, chatId, env, date = null) {
+  const dateToEdit = date || new Date().toISOString().split('T')[0];
+
+  // Get existing entry
+  const existing = await env.DB.prepare(
+    'SELECT rounds, events FROM journal WHERE telegram_id = ? AND date = ?'
+  ).bind(telegramId, dateToEdit).first();
+
+  if (!existing) {
+    await sendTelegramMessage(
+      chatId,
+      `❌ Записи за ${dateToEdit} нет.`,
+      env
+    );
+    return;
+  }
+
+  try {
+    let newRounds = existing.rounds;
+    let newEvents = existing.events;
+
+    if (field === 'rounds') {
+      // Parse rounds manually: "09:10, 12:15, 16:30" (start times only)
+      const roundsArray = text.split(',').map(t => t.trim()).filter(t => t);
+      // Convert to intervals (+10 minutes each)
+      const intervalsArray = convertToIntervals(roundsArray);
+      newRounds = JSON.stringify(intervalsArray);
+    } else if (field === 'events') {
+      // Parse events with Gemini
+      const parsedData = await parseTranscription(`События: ${text}`, env);
+      newEvents = JSON.stringify(parsedData.events || []);
+    }
+
+    // Update entry
+    await env.DB.prepare(`
+      UPDATE journal
+      SET rounds = ?, events = ?
+      WHERE telegram_id = ? AND date = ?
+    `).bind(newRounds, newEvents, telegramId, dateToEdit).run();
+
+    await sendTelegramMessage(
+      chatId,
+      `✅ Обновлено!\n\n${field === 'rounds' ? '🚶 Интервалы обходов' : '📋 События'} изменены для ${dateToEdit}.`,
+      env
+    );
+  } catch (error) {
+    console.error('Partial edit error:', error);
+    await sendTelegramMessage(
+      chatId,
+      `❌ Ошибка: ${error.message}`,
+      env
+    );
+  }
 }
 
 /**
@@ -209,6 +571,20 @@ async function handleTextMessage(message, env) {
   ).bind(telegramId).first();
 
   if (!user) {
+    // Check max users limit before registration
+    const usersCount = await env.DB.prepare(
+      'SELECT COUNT(*) as count FROM users'
+    ).first();
+
+    if (usersCount.count >= 4) {
+      await sendTelegramMessage(
+        chatId,
+        '❌ Регистрация закрыта.\n\nДостигнут лимит пользователей (4).',
+        env
+      );
+      return;
+    }
+
     // Register new user
     await env.DB.prepare(
       'INSERT INTO users (telegram_id, surname) VALUES (?, ?)'
@@ -216,9 +592,32 @@ async function handleTextMessage(message, env) {
 
     await sendTelegramMessage(
       chatId,
-      `✅ Регистрация завершена!\n\nВаша фамилия: ${text}\n\nТеперь отправьте сообщение (текстом или голосом) с информацией об обходах и событиях.\n\nПример: "Обходы 08:10, 12:15. Садовники приехали 07:05, уехали 15:40"`,
+      `✅ Регистрация завершена!
+
+Ваша фамилия: ${text}
+
+🎙️ Теперь отправьте ГОЛОСОВОЕ сообщение с обходами и событиями.
+
+Пример: "Обходы девять десять, двенадцать пятнадцать. Садовники приехали семь ноль пять, уехали пятнадцать сорок"
+
+Используйте /help для подробной инструкции.`,
       env
     );
+    return;
+  }
+
+  // Check for special edit commands
+  if (text.toLowerCase().startsWith('rounds:')) {
+    // Edit only rounds
+    const roundsText = text.substring(7).trim();
+    await handlePartialEdit(telegramId, user.surname, 'rounds', roundsText, chatId, env);
+    return;
+  }
+
+  if (text.toLowerCase().startsWith('events:')) {
+    // Edit only events
+    const eventsText = text.substring(7).trim();
+    await handlePartialEdit(telegramId, user.surname, 'events', eventsText, chatId, env);
     return;
   }
 
@@ -229,18 +628,37 @@ async function handleTextMessage(message, env) {
     // Parse text with Gemini
     const parsedData = await parseTranscription(text, env);
 
-    // Save to database
+    // Check if entry exists for today
     const today = new Date().toISOString().split('T')[0];
-    await env.DB.prepare(`
-      INSERT INTO journal (telegram_id, surname, date, rounds, events)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(
-      telegramId,
-      user.surname,
-      today,
-      JSON.stringify(parsedData.rounds),
-      JSON.stringify(parsedData.events)
-    ).run();
+    const existing = await env.DB.prepare(
+      'SELECT id FROM journal WHERE telegram_id = ? AND date = ?'
+    ).bind(telegramId, today).first();
+
+    if (existing) {
+      // Update existing entry
+      await env.DB.prepare(`
+        UPDATE journal
+        SET rounds = ?, events = ?
+        WHERE telegram_id = ? AND date = ?
+      `).bind(
+        JSON.stringify(parsedData.rounds),
+        JSON.stringify(parsedData.events),
+        telegramId,
+        today
+      ).run();
+    } else {
+      // Insert new entry
+      await env.DB.prepare(`
+        INSERT INTO journal (telegram_id, surname, date, rounds, events)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(
+        telegramId,
+        user.surname,
+        today,
+        JSON.stringify(parsedData.rounds),
+        JSON.stringify(parsedData.events)
+      ).run();
+    }
 
     // Send confirmation
     const confirmation = formatConfirmation(user.surname, today, parsedData);
@@ -295,18 +713,37 @@ async function handleVoiceMessage(message, env) {
     // Step 3: Parse transcription with Gemini structured output
     const parsedData = await parseTranscription(transcription, env);
 
-    // Step 4: Save to database
+    // Step 4: Check if entry exists for today
     const today = new Date().toISOString().split('T')[0];
-    await env.DB.prepare(`
-      INSERT INTO journal (telegram_id, surname, date, rounds, events)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(
-      telegramId,
-      user.surname,
-      today,
-      JSON.stringify(parsedData.rounds),
-      JSON.stringify(parsedData.events)
-    ).run();
+    const existing = await env.DB.prepare(
+      'SELECT id FROM journal WHERE telegram_id = ? AND date = ?'
+    ).bind(telegramId, today).first();
+
+    if (existing) {
+      // Update existing entry
+      await env.DB.prepare(`
+        UPDATE journal
+        SET rounds = ?, events = ?
+        WHERE telegram_id = ? AND date = ?
+      `).bind(
+        JSON.stringify(parsedData.rounds),
+        JSON.stringify(parsedData.events),
+        telegramId,
+        today
+      ).run();
+    } else {
+      // Insert new entry
+      await env.DB.prepare(`
+        INSERT INTO journal (telegram_id, surname, date, rounds, events)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(
+        telegramId,
+        user.surname,
+        today,
+        JSON.stringify(parsedData.rounds),
+        JSON.stringify(parsedData.events)
+      ).run();
+    }
 
     // Send confirmation
     const confirmation = formatConfirmation(user.surname, today, parsedData);
@@ -386,6 +823,70 @@ async function transcribeAudio(audioBuffer, env) {
 }
 
 /**
+ * Parse voice command for editing/deleting entries
+ */
+async function parseVoiceCommand(text, env) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${env.GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Проанализируй команду пользователя и определи намерение:
+
+Команда: "${text}"
+
+Возможные типы команд:
+- "edit" - изменить существующую запись (добавить/убрать обходы или события)
+- "delete" - удалить запись
+- "add_journal" - создать обычную запись журнала (обходы и события)
+
+Примеры:
+"Измени запись 2, убери время 21:20" -> edit, entryIndex: 2, action: remove_rounds, rounds: ["21:20"]
+"Добавь к записи 1 обход 09:30" -> edit, entryIndex: 1, action: add_rounds, rounds: ["09:30"]
+"Удали запись 3" -> delete, entryIndex: 3
+"Обходы 09:10, 12:15" -> add_journal (обычная запись)
+
+Верни структурированный JSON согласно схеме.`
+          }]
+        }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: VOICE_COMMAND_SCHEMA
+        }
+      })
+    }
+  );
+
+  const data = await response.json();
+  if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+    throw new Error(`Voice command parsing failed: ${JSON.stringify(data)}`);
+  }
+
+  return JSON.parse(data.candidates[0].content.parts[0].text);
+}
+
+/**
+ * Convert single start times to intervals (add +10 minutes for end time)
+ */
+function convertToIntervals(startTimes) {
+  return startTimes.map(startTime => {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const endMinutes = minutes + 10;
+
+    if (endMinutes < 60) {
+      return `${startTime}-${String(hours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+    } else {
+      const nextHour = hours + 1;
+      const remainingMinutes = endMinutes - 60;
+      return `${startTime}-${String(nextHour % 24).padStart(2, '0')}:${String(remainingMinutes).padStart(2, '0')}`;
+    }
+  });
+}
+
+/**
  * Parse transcription using Gemini structured output
  */
 async function parseTranscription(text, env) {
@@ -398,8 +899,13 @@ async function parseTranscription(text, env) {
         contents: [{
           parts: [{
             text: `Из следующего текста извлеки:
-1. Время обходов (список времен в формате HH:MM)
+1. ТОЛЬКО ВРЕМЯ НАЧАЛА обходов (список времен в формате HH:MM, без времени конца)
 2. События (что произошло и во сколько)
+
+Примеры:
+- "Обходы девять десять, двенадцать пятнадцать" → rounds: ["09:10", "12:15"]
+- "Обходы 10:10, 12:25" → rounds: ["10:10", "12:25"]
+- Не вводи никакие интервалы сам! Бот автоматически добавит +10 минут для каждого обхода.
 
 Текст: "${text}"
 
@@ -419,7 +925,14 @@ async function parseTranscription(text, env) {
     throw new Error(`Gemini parsing failed: ${JSON.stringify(data)}`);
   }
 
-  return JSON.parse(data.candidates[0].content.parts[0].text);
+  const parsed = JSON.parse(data.candidates[0].content.parts[0].text);
+
+  // Convert start times to intervals (add +10 minutes)
+  if (parsed.rounds && parsed.rounds.length > 0) {
+    parsed.rounds = convertToIntervals(parsed.rounds);
+  }
+
+  return parsed;
 }
 
 /**
@@ -441,6 +954,186 @@ async function sendTelegramMessage(chatId, text, env) {
 }
 
 /**
+ * Send message with inline keyboard buttons
+ */
+async function sendTelegramMessageWithButtons(chatId, text, buttons, env) {
+  await fetch(
+    `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text,
+        reply_markup: {
+          inline_keyboard: buttons
+        }
+      })
+    }
+  );
+}
+
+/**
+ * Answer callback query (button click)
+ */
+async function answerCallbackQuery(callbackQueryId, text, env) {
+  await fetch(
+    `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        callback_query_id: callbackQueryId,
+        text: text || '✅'
+      })
+    }
+  );
+}
+
+/**
+ * Handle callback query (button clicks)
+ */
+async function handleCallbackQuery(callbackQuery, env) {
+  const telegramId = callbackQuery.from.id;
+  const chatId = callbackQuery.message.chat.id;
+  const data = callbackQuery.data;
+
+  // Parse callback data - check more specific first
+  if (data.startsWith('edit_rounds_')) {
+    // Edit rounds for specific date
+    const date = data.substring(12);
+    await startEditRounds(telegramId, chatId, date, callbackQuery.id, env);
+  } else if (data.startsWith('edit_events_')) {
+    // Edit events for specific date
+    const date = data.substring(12);
+    await startEditEvents(telegramId, chatId, date, callbackQuery.id, env);
+  } else if (data.startsWith('edit_')) {
+    // Edit specific date (show options)
+    const date = data.substring(5);
+    await showEditOptions(telegramId, chatId, date, callbackQuery.id, env);
+  }
+}
+
+/**
+ * Show edit options (rounds/events/all)
+ */
+async function showEditOptions(telegramId, chatId, date, callbackQueryId, env) {
+  // Get entry
+  const entry = await env.DB.prepare(
+    'SELECT rounds, events FROM journal WHERE telegram_id = ? AND date = ?'
+  ).bind(telegramId, date).first();
+
+  if (!entry) {
+    await answerCallbackQuery(callbackQueryId, '❌ Запись не найдена', env);
+    return;
+  }
+
+  const rounds = JSON.parse(entry.rounds || '[]');
+  const events = JSON.parse(entry.events || '[]');
+
+  let message_text = `✏️ Редактирование записи за ${date}\n\n`;
+  message_text += `📝 Текущие данные:\n\n`;
+  message_text += `🚶 Интервалы обходов:\n`;
+  if (rounds.length > 0) {
+    rounds.forEach(interval => message_text += `  • ${interval}\n`);
+  } else {
+    message_text += 'нет\n';
+  }
+  message_text += `\n📋 События:\n`;
+  if (events.length > 0) {
+    events.forEach(e => message_text += `  • ${e.time} - ${e.description}\n`);
+  } else {
+    message_text += 'нет\n';
+  }
+  message_text += `\nВыберите что изменить:`;
+
+  const buttons = [
+    [{ text: '🚶 Обходы', callback_data: `edit_rounds_${date}` }],
+    [{ text: '📋 События', callback_data: `edit_events_${date}` }]
+  ];
+
+  await answerCallbackQuery(callbackQueryId, '', env);
+  await sendTelegramMessageWithButtons(chatId, message_text, buttons, env);
+}
+
+/**
+ * Start editing rounds
+ */
+async function startEditRounds(telegramId, chatId, date, callbackQueryId, env) {
+  console.log('startEditRounds:', { telegramId, date });
+
+  const entry = await env.DB.prepare(
+    'SELECT rounds FROM journal WHERE telegram_id = ? AND date = ?'
+  ).bind(telegramId, date).first();
+
+  console.log('Entry found:', entry);
+
+  if (!entry) {
+    await answerCallbackQuery(callbackQueryId, `❌ Запись не найдена (${date})`, env);
+    await sendTelegramMessage(
+      chatId,
+      `❌ Debug: Не найдена запись для telegram_id=${telegramId}, date=${date}`,
+      env
+    );
+    return;
+  }
+
+  const rounds = JSON.parse(entry.rounds || '[]');
+
+  let message_text = `✏️ Редактирование интервалов обходов за ${date}\n\n`;
+  message_text += `Текущие интервалы:\n`;
+  if (rounds.length > 0) {
+    rounds.forEach(interval => message_text += `  • ${interval}\n`);
+  } else {
+    message_text += 'нет\n';
+  }
+  message_text += `\nОтправьте ТОЛЬКО ВРЕМЯ НАЧАЛА обходов в формате:\n`;
+  message_text += `rounds: 09:10, 12:15, 16:30\n\n`;
+  message_text += `Бот автоматически добавит +10 минут для каждого обхода.`;
+
+  await answerCallbackQuery(callbackQueryId, '✏️ Отправьте новые времена обходов', env);
+  await sendTelegramMessage(chatId, message_text, env);
+}
+
+/**
+ * Start editing events
+ */
+async function startEditEvents(telegramId, chatId, date, callbackQueryId, env) {
+  console.log('startEditEvents:', { telegramId, date });
+
+  const entry = await env.DB.prepare(
+    'SELECT events FROM journal WHERE telegram_id = ? AND date = ?'
+  ).bind(telegramId, date).first();
+
+  console.log('Entry found:', entry);
+
+  if (!entry) {
+    await answerCallbackQuery(callbackQueryId, `❌ Запись не найдена (${date})`, env);
+    await sendTelegramMessage(
+      chatId,
+      `❌ Debug: Не найдена запись для telegram_id=${telegramId}, date=${date}`,
+      env
+    );
+    return;
+  }
+
+  const events = JSON.parse(entry.events || '[]');
+
+  let message_text = `✏️ Редактирование событий за ${date}\n\n`;
+  message_text += `Текущие события:\n`;
+  if (events.length > 0) {
+    events.forEach(e => message_text += `  • ${e.time} - ${e.description}\n`);
+  } else {
+    message_text += 'нет\n';
+  }
+  message_text += `\nОтправьте новые события в формате:\n`;
+  message_text += `events: Садовники 07:05, Ролеты 20:00`;
+
+  await answerCallbackQuery(callbackQueryId, '✏️ Отправьте новые события', env);
+  await sendTelegramMessage(chatId, message_text, env);
+}
+
+/**
  * Format confirmation message
  */
 function formatConfirmation(surname, date, data) {
@@ -449,7 +1142,11 @@ function formatConfirmation(surname, date, data) {
   message += `📅 ${date}\n\n`;
 
   if (data.rounds && data.rounds.length > 0) {
-    message += `🚶 Обходы:\n${data.rounds.join(', ')}\n\n`;
+    message += `🚶 Интервалы обходов:\n`;
+    data.rounds.forEach(interval => {
+      message += `  • ${interval}\n`;
+    });
+    message += '\n';
   }
 
   if (data.events && data.events.length > 0) {
