@@ -164,9 +164,19 @@ async function handleTelegramWebhook(request, env) {
     else if (update.message?.text?.startsWith('/help')) {
       await handleHelpCommand(update.message, env);
     }
-    // Handle text message - surname registration or journal entry
+    // Handle text message - could be menu button, surname registration, or journal entry
     else if (update.message?.text) {
-      await handleTextMessage(update.message, env);
+      const text = update.message.text;
+      // Check if it's a menu button press
+      if (text === '🎙️ Start') {
+        await handleStartCommand(update.message, env);
+      } else if (text === '✏️ Edit') {
+        await handleEditCommand(update.message, env);
+      } else if (text === 'ℹ️ Help') {
+        await handleHelpCommand(update.message, env);
+      } else {
+        await handleTextMessage(update.message, env);
+      }
     }
 
     return new Response('OK', { status: 200 });
@@ -229,7 +239,7 @@ async function checkRateLimit(telegramId, chatId, env) {
 }
 
 /**
- * Handle /start command - register user
+ * Handle /start command - register user or show date selection
  */
 async function handleStartCommand(message, env) {
   const telegramId = message.from.id;
@@ -241,17 +251,37 @@ async function handleStartCommand(message, env) {
   ).bind(telegramId).first();
 
   if (existing) {
-    await sendTelegramMessage(
-      chatId,
-      `Вы уже зарегистрированы как: ${existing.surname}
+    // User already registered - show date selection
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
 
-🎙️ Это голосовой бот! Отправьте голосовое сообщение с обходами и событиями.
+    const formatDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
 
-Пример: "Обходы девять десять, двенадцать пятнадцать. Садовники приехали семь ноль пять"
+    const todayStr = formatDate(today);
+    const yesterdayStr = formatDate(yesterday);
+    const tomorrowStr = formatDate(tomorrow);
 
-Или используйте /help для полной инструкции.`,
-      env
-    );
+    const buttons = [
+      [
+        { text: '📅 Вчера', callback_data: `select_date_${yesterdayStr}` },
+        { text: '📅 Сегодня', callback_data: `select_date_${todayStr}` },
+        { text: '📅 Завтра', callback_data: `select_date_${tomorrowStr}` }
+      ]
+    ];
+
+    const helpText = `🎙️ Привет, ${existing.surname}!
+
+Выберите дату для заполнения журнала обходов:`;
+
+    await sendTelegramMessageWithButtons(chatId, helpText, buttons, env);
     return;
   }
 
@@ -269,7 +299,7 @@ async function handleStartCommand(message, env) {
     return;
   }
 
-  await sendTelegramMessage(
+  await sendTelegramMessageWithMenu(
     chatId,
     `🎙️ Добро пожаловать в голосовой журнал обходов!
 
@@ -290,33 +320,35 @@ async function handleHelpCommand(message, env) {
 
 📋 ОСНОВНЫЕ КОМАНДЫ:
 
-/start - Регистрация (введите фамилию)
-/help - Показать эту справку
+🎙️ Start - Начать заполнение (выбрать дату)
+✏️ Edit - Редактировать запись
+ℹ️ Help - Показать эту справку
 /list - Показать последние 5 записей
-/edit - Редактировать запись (выбор кнопками)
 /delete [дата] - Удалить запись
 
-🎤 ГОЛОСОВОЕ УПРАВЛЕНИЕ:
+🎤 КАК ИСПОЛЬЗОВАТЬ:
 
-1️⃣ Создание записи:
-"Обходы девять десять, двенадцать пятнадцать. Садовники приехали семь ноль пять"
+1️⃣ Нажми кнопку <b>Start</b>
+2️⃣ Выбери дату (Вчера / Сегодня / Завтра)
+3️⃣ Скажи обходы и события:
 
-2️⃣ Редактирование голосом:
-"Измени запись два, убери время двадцать один двадцать"
-"Добавь к записи один обход девять тридцать"
-"Удали запись три"
+<b>Пример:</b>
+"Обходы 10:10, 12:25. Садовники приехали 07:05, уехали 15:40"
 
-После голосовой команды редактирования бот покажет что изменится и попросит подтвердить кнопками Да/Нет.
+⚠️ ВАЖНО:
+• Говори только ВРЕМЯ НАЧАЛА обходов (10:10)
+• Бот автоматически добавит +10 минут (10:10-10:20)
+• События указывай со временем и описанием
 
 💡 ПОДСКАЗКИ:
 
 • Можно использовать текст вместо голоса
-• Запись обновляется если отправить данные повторно за тот же день
+• Запись обновляется если отправить данные за тот же день
 • В таблице показываются все записи всех охранников
 
-📊 Таблица доступна на сайте (ссылка у администратора)`;
+📊 Таблица: https://gagarinyury.github.io/voice-work-telega/`;
 
-  await sendTelegramMessage(chatId, helpText, env);
+  await sendTelegramMessageWithMenu(chatId, helpText, env);
 }
 
 /**
@@ -369,9 +401,9 @@ async function handleListCommand(message, env) {
   });
 
   message_text += 'Для удаления: /delete <дата>\nНапример: /delete 09.12.2025\n\n';
-  message_text += 'Для редактирования: /edit';
+  message_text += 'Для редактирования: нажми ✏️ Edit';
 
-  await sendTelegramMessage(chatId, message_text, env);
+  await sendTelegramMessageWithMenu(chatId, message_text, env);
 }
 
 /**
@@ -590,17 +622,13 @@ async function handleTextMessage(message, env) {
       'INSERT INTO users (telegram_id, surname) VALUES (?, ?)'
     ).bind(telegramId, text).run();
 
-    await sendTelegramMessage(
+    await sendTelegramMessageWithMenu(
       chatId,
       `✅ Регистрация завершена!
 
-Ваша фамилия: ${text}
+Ваша фамилия: <b>${text}</b>
 
-🎙️ Теперь отправьте ГОЛОСОВОЕ сообщение с обходами и событиями.
-
-Пример: "Обходы девять десять, двенадцать пятнадцать. Садовники приехали семь ноль пять, уехали пятнадцать сорок"
-
-Используйте /help для подробной инструкции.`,
+🎙️ Нажми кнопку <b>Start</b> чтобы начать заполнение журнала обходов!`,
       env
     );
     return;
@@ -662,13 +690,13 @@ async function handleTextMessage(message, env) {
 
     // Send confirmation
     const confirmation = formatConfirmation(user.surname, today, parsedData);
-    await sendTelegramMessage(chatId, confirmation, env);
+    await sendTelegramMessageWithMenu(chatId, confirmation, env);
 
   } catch (error) {
     console.error('Text processing error:', error);
     let errorMsg = '❌ Ошибка обработки:\n\n';
     errorMsg += error.message || error.toString();
-    await sendTelegramMessage(chatId, errorMsg, env);
+    await sendTelegramMessageWithMenu(chatId, errorMsg, env);
   }
 }
 
@@ -747,7 +775,7 @@ async function handleVoiceMessage(message, env) {
 
     // Send confirmation
     const confirmation = formatConfirmation(user.surname, today, parsedData);
-    await sendTelegramMessage(chatId, confirmation, env);
+    await sendTelegramMessageWithMenu(chatId, confirmation, env);
 
   } catch (error) {
     console.error('Voice processing error:', error);
@@ -760,7 +788,7 @@ async function handleVoiceMessage(message, env) {
       errorMsg += `\n\nДетали: ${error.stack.substring(0, 200)}`;
     }
 
-    await sendTelegramMessage(chatId, errorMsg, env);
+    await sendTelegramMessageWithMenu(chatId, errorMsg, env);
   }
 }
 
@@ -954,6 +982,38 @@ async function sendTelegramMessage(chatId, text, env) {
 }
 
 /**
+ * Get keyboard menu buttons (persistent menu)
+ */
+function getMainMenuKeyboard() {
+  return {
+    keyboard: [
+      [{ text: '🎙️ Start' }, { text: '✏️ Edit' }, { text: 'ℹ️ Help' }]
+    ],
+    resize_keyboard: true,
+    one_time_keyboard: false
+  };
+}
+
+/**
+ * Send message with persistent menu
+ */
+async function sendTelegramMessageWithMenu(chatId, text, env) {
+  await fetch(
+    `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text,
+        parse_mode: 'HTML',
+        reply_markup: getMainMenuKeyboard()
+      })
+    }
+  );
+}
+
+/**
  * Send message with inline keyboard buttons
  */
 async function sendTelegramMessageWithButtons(chatId, text, buttons, env) {
@@ -999,7 +1059,11 @@ async function handleCallbackQuery(callbackQuery, env) {
   const data = callbackQuery.data;
 
   // Parse callback data - check more specific first
-  if (data.startsWith('edit_rounds_')) {
+  if (data.startsWith('select_date_')) {
+    // Date selected from /start menu
+    const date = data.substring(12);
+    await handleDateSelected(telegramId, chatId, date, callbackQuery.id, env);
+  } else if (data.startsWith('edit_rounds_')) {
     // Edit rounds for specific date
     const date = data.substring(12);
     await startEditRounds(telegramId, chatId, date, callbackQuery.id, env);
@@ -1012,6 +1076,42 @@ async function handleCallbackQuery(callbackQuery, env) {
     const date = data.substring(5);
     await showEditOptions(telegramId, chatId, date, callbackQuery.id, env);
   }
+}
+
+/**
+ * Handle date selection from /start menu
+ */
+async function handleDateSelected(telegramId, chatId, date, callbackQueryId, env) {
+  const user = await env.DB.prepare(
+    'SELECT surname FROM users WHERE telegram_id = ?'
+  ).bind(telegramId).first();
+
+  if (!user) {
+    await answerCallbackQuery(callbackQueryId, '❌ Пользователь не найден', env);
+    return;
+  }
+
+  // Format date for display (2025-12-11 -> 11.12.2025)
+  const [year, month, day] = date.split('-');
+  const displayDate = `${day}.${month}.${year}`;
+
+  await answerCallbackQuery(callbackQueryId, `✅ Выбрана дата: ${displayDate}`, env);
+
+  const helpText = `📅 Дата: <b>${displayDate}</b>
+
+🎙️ Отправьте голосовое сообщение или текст с информацией:
+
+<b>Пример:</b>
+"Обходы 10:10, 12:25, 16:30. Садовники приехали 07:05, уехали 15:40"
+
+<b>Как это работает:</b>
+• Назовите только ВРЕМЯ НАЧАЛА обходов (10:10)
+• Бот автоматически добавит +10 минут (10:10-10:20)
+• События указывайте со временем и описанием
+
+Готово? Отправляй!`;
+
+  await sendTelegramMessageWithMenu(chatId, helpText, env);
 }
 
 /**
