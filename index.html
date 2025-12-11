@@ -25,6 +25,8 @@
             border-radius: 12px;
             padding: 30px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            position: relative;
+            z-index: 1;
         }
 
         h1 {
@@ -42,11 +44,16 @@
         }
 
         .login-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             display: none;
             text-align: center;
-            padding: 60px 20px;
-            min-height: 400px;
-            display: flex;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            z-index: 9999;
             flex-direction: column;
             justify-content: center;
             align-items: center;
@@ -450,21 +457,21 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Экран входа -->
-        <div id="loginScreen" class="login-screen active">
-            <div class="login-card">
-                <div class="login-icon">🔐</div>
-                <h2>Защищенный доступ</h2>
-                <p>Введите пароль для доступа к журналу</p>
-                <div id="loginError" class="login-error"></div>
-                <form id="loginForm" class="login-form" onsubmit="handleLogin(event)">
-                    <input type="password" id="passwordInput" placeholder="Пароль" autofocus required>
-                    <button type="submit">Войти</button>
-                </form>
-            </div>
+    <!-- Экран входа -->
+    <div id="loginScreen" class="login-screen active">
+        <div class="login-card">
+            <div class="login-icon">🔐</div>
+            <h2>Защищенный доступ</h2>
+            <p>Введите пароль для доступа к журналу</p>
+            <div id="loginError" class="login-error"></div>
+            <form id="loginForm" class="login-form" onsubmit="handleLogin(event)">
+                <input type="password" id="passwordInput" placeholder="Пароль" autofocus required>
+                <button type="submit">Войти</button>
+            </form>
         </div>
+    </div>
 
+    <div class="container">
         <!-- Основной журнал -->
         <div id="journalScreen" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
