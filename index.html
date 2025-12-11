@@ -677,17 +677,19 @@
                 let roundsCell = roundsHtml;
                 let eventsCell = eventsHtml;
                 let surnameCell = `<span>${escapeHtml(entry.surname)}</span>`;
+                let dateCell = `${formatDate(entry.date)}`;
 
                 if (currentAccessLevel === 'admin') {
                     roundsCell += `<button class="edit-btn" onclick="openEditModal(${index}, 'rounds')">✏️</button>`;
                     eventsCell += `<button class="edit-btn" onclick="openEditModal(${index}, 'events')">✏️</button>`;
+                    dateCell += `<button class="edit-btn" onclick="openEditModal(${index}, 'date')">✏️</button>`;
                     surnameCell += `<button class="delete-btn" onclick="openDeleteModal(${index})" title="Удалить запись">🗑️</button>`;
                 }
 
                 html += `
                     <tr>
                         <td class="surname-cell">${surnameCell}</td>
-                        <td class="date-cell">${formatDate(entry.date)}</td>
+                        <td class="date-cell">${dateCell}</td>
                         <td class="items-cell">${itemsHtml}</td>
                         <td class="rounds-cell">${roundsCell}</td>
                         <td class="events-cell">${eventsCell}</td>
@@ -716,11 +718,15 @@
             if (fieldType === 'rounds') {
                 title.textContent = `Редактирование обходов - ${entry.surname} (${formatDate(entry.date)})`;
                 textarea.value = entry.rounds ? entry.rounds.join('\n') : '';
-            } else {
+            } else if (fieldType === 'events') {
                 title.textContent = `Редактирование событий - ${entry.surname} (${formatDate(entry.date)})`;
                 textarea.value = entry.events
                     ? entry.events.map(e => `${e.time} - ${e.description}`).join('\n')
                     : '';
+            } else if (fieldType === 'date') {
+                title.textContent = `Редактирование даты - ${entry.surname}`;
+                // Show in YYYY-MM-DD format for input
+                textarea.value = entry.date;
             }
 
             modal.classList.add('active');
@@ -780,30 +786,74 @@
             const textarea = document.getElementById('editTextarea');
             const entry = currentEntries[entryIndex];
 
-            let updateData = {
-                date: entry.date,
-                surname: entry.surname
-            };
-
-            if (fieldType === 'rounds') {
-                updateData.rounds = textarea.value
-                    .split('\n')
-                    .map(line => line.trim())
-                    .filter(line => line);
-            } else {
-                updateData.events = textarea.value
-                    .split('\n')
-                    .map(line => {
-                        const match = line.match(/^(.+?)\s*-\s*(.+)$/);
-                        if (match) {
-                            return { time: match[1].trim(), description: match[2].trim() };
-                        }
-                        return null;
-                    })
-                    .filter(e => e !== null);
-            }
-
             try {
+                // If changing date, need to delete old and create new
+                if (fieldType === 'date') {
+                    const newDate = textarea.value.trim();
+
+                    // Validate date format YYYY-MM-DD
+                    if (!newDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        alert('Неправильный формат даты. Используйте YYYY-MM-DD (например: 2025-12-11)');
+                        return;
+                    }
+
+                    // Delete old entry
+                    await fetch(API_URL, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            date: entry.date,
+                            surname: entry.surname
+                        })
+                    });
+
+                    // Create new entry with new date
+                    const updateData = {
+                        date: newDate,
+                        surname: entry.surname,
+                        rounds: entry.rounds,
+                        events: entry.events
+                    };
+
+                    // This will require a POST endpoint, so we'll use PUT with special handling
+                    const response = await fetch(API_URL, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updateData)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    closeEditModal();
+                    loadJournal();
+                    return;
+                }
+
+                let updateData = {
+                    date: entry.date,
+                    surname: entry.surname
+                };
+
+                if (fieldType === 'rounds') {
+                    updateData.rounds = textarea.value
+                        .split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line);
+                } else if (fieldType === 'events') {
+                    updateData.events = textarea.value
+                        .split('\n')
+                        .map(line => {
+                            const match = line.match(/^(.+?)\s*-\s*(.+)$/);
+                            if (match) {
+                                return { time: match[1].trim(), description: match[2].trim() };
+                            }
+                            return null;
+                        })
+                        .filter(e => e !== null);
+                }
+
                 const response = await fetch(API_URL, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
