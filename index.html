@@ -674,18 +674,25 @@
                     </div>
                 `;
 
-                let roundsCell = roundsHtml;
-                let eventsCell = eventsHtml;
+                let roundsCell = `<span class="cell-editable" onclick="makeEditable(${index}, 'rounds')" style="cursor: pointer;">${roundsHtml || '—'}</span>`;
+                let eventsCell = `<span class="cell-editable" onclick="makeEditable(${index}, 'events')" style="cursor: pointer;">${eventsHtml || '—'}</span>`;
                 let surnameCell = `<span>${escapeHtml(entry.surname)}</span>`;
-                let dateCell = `${formatDate(entry.date)}`;
-
-                console.log('Access level:', currentAccessLevel, 'Admin check:', currentAccessLevel === 'admin');
+                let dateCell = `<span class="cell-editable" onclick="makeEditable(${index}, 'date')" style="cursor: pointer;">${formatDate(entry.date)}</span>`;
 
                 if (currentAccessLevel === 'admin') {
-                    console.log('Adding edit buttons for admin');
-                    roundsCell += `<button class="edit-btn" onclick="openEditModal(${index}, 'rounds')">✏️</button>`;
-                    eventsCell += `<button class="edit-btn" onclick="openEditModal(${index}, 'events')">✏️</button>`;
-                    dateCell += `<button class="edit-btn" onclick="openEditModal(${index}, 'date')">✏️</button>`;
+                    // Wrap in hint div
+                    roundsCell = `<div style="position: relative;">
+                        ${roundsCell}
+                        <span style="position: absolute; top: 0; right: 0; color: #667eea; font-size: 12px;">✏️</span>
+                    </div>`;
+                    eventsCell = `<div style="position: relative;">
+                        ${eventsCell}
+                        <span style="position: absolute; top: 0; right: 0; color: #667eea; font-size: 12px;">✏️</span>
+                    </div>`;
+                    dateCell = `<div style="position: relative;">
+                        ${dateCell}
+                        <span style="position: absolute; top: 0; right: 0; color: #667eea; font-size: 12px;">✏️</span>
+                    </div>`;
                     surnameCell += `<button class="delete-btn" onclick="openDeleteModal(${index})" title="Удалить запись">🗑️</button>`;
                 }
 
@@ -709,35 +716,122 @@
             contentEl.innerHTML = html;
         }
 
-        function openEditModal(entryIndex, fieldType) {
+        function makeEditable(entryIndex, fieldType) {
             const entry = currentEntries[entryIndex];
-            const modal = document.getElementById('editModal');
-            const textarea = document.getElementById('editTextarea');
-            const title = document.getElementById('editModalTitle');
+            const span = event.target.closest('.cell-editable');
+            if (!span) return;
 
-            modal.dataset.entryIndex = entryIndex;
-            modal.dataset.fieldType = fieldType;
+            const parent = span.parentElement;
+            let value = '';
+            let inputType = 'text';
+            let placeholder = '';
 
-            if (fieldType === 'rounds') {
-                title.textContent = `Редактирование обходов - ${entry.surname} (${formatDate(entry.date)})`;
-                textarea.value = entry.rounds ? entry.rounds.join('\n') : '';
+            if (fieldType === 'date') {
+                value = entry.date;
+                inputType = 'date';
+            } else if (fieldType === 'rounds') {
+                value = (entry.rounds || []).join('\n');
+                placeholder = 'Введи время обходов по одному в строке';
             } else if (fieldType === 'events') {
-                title.textContent = `Редактирование событий - ${entry.surname} (${formatDate(entry.date)})`;
-                textarea.value = entry.events
-                    ? entry.events.map(e => `${e.time} - ${e.description}`).join('\n')
-                    : '';
-            } else if (fieldType === 'date') {
-                title.textContent = `Редактирование даты - ${entry.surname}`;
-                // Show in YYYY-MM-DD format for input
-                textarea.value = entry.date;
+                value = (entry.events || []).map(e => `${e.time} - ${e.description}`).join('\n');
+                placeholder = 'Введи события (время - описание)';
             }
 
-            modal.classList.add('active');
-            textarea.focus();
+            // Create textarea or input
+            const isTextarea = fieldType !== 'date';
+            const input = isTextarea
+                ? document.createElement('textarea')
+                : document.createElement('input');
+
+            input.type = inputType;
+            input.value = value;
+            input.style.padding = '8px';
+            input.style.borderRadius = '4px';
+            input.style.border = '2px solid #667eea';
+            input.style.fontFamily = 'monospace';
+            input.style.width = '100%';
+            input.style.minHeight = isTextarea ? '100px' : 'auto';
+            if (placeholder) input.placeholder = placeholder;
+
+            parent.innerHTML = '';
+            parent.appendChild(input);
+            input.focus();
+
+            // Save on Enter (for input) or Ctrl+Enter (for textarea)
+            input.addEventListener('keypress', async (e) => {
+                if ((e.key === 'Enter' && !isTextarea) ||
+                    (e.key === 'Enter' && isTextarea && e.ctrlKey)) {
+                    await saveFieldChange(entryIndex, fieldType, input.value, entry);
+                }
+            });
+
+            // Save on blur
+            input.addEventListener('blur', async () => {
+                await saveFieldChange(entryIndex, fieldType, input.value, entry);
+            });
         }
 
-        function closeEditModal() {
-            document.getElementById('editModal').classList.remove('active');
+        async function saveFieldChange(entryIndex, fieldType, newValue, entry) {
+            try {
+                let updateData = {
+                    date: entry.date,
+                    surname: entry.surname
+                };
+
+                if (fieldType === 'date') {
+                    if (entry.date === newValue) {
+                        loadJournal();
+                        return;
+                    }
+
+                    // For date change, need to delete old and create new
+                    await fetch(API_URL, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            date: entry.date,
+                            surname: entry.surname
+                        })
+                    });
+
+                    updateData.date = newValue;
+                    updateData.rounds = entry.rounds;
+                    updateData.events = entry.events;
+
+                } else if (fieldType === 'rounds') {
+                    updateData.rounds = newValue
+                        .split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line);
+
+                } else if (fieldType === 'events') {
+                    updateData.events = newValue
+                        .split('\n')
+                        .map(line => {
+                            const match = line.match(/^(.+?)\s*-\s*(.+)$/);
+                            if (match) {
+                                return { time: match[1].trim(), description: match[2].trim() };
+                            }
+                            return null;
+                        })
+                        .filter(e => e !== null);
+                }
+
+                const response = await fetch(API_URL, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updateData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                loadJournal();
+            } catch (error) {
+                alert(`Ошибка при сохранении: ${error.message}`);
+                loadJournal();
+            }
         }
 
         let deleteData = null;
@@ -777,100 +871,6 @@
                 loadJournal();
             } catch (error) {
                 alert(`Ошибка удаления: ${error.message}`);
-            }
-        }
-
-        async function handleEditSave(event) {
-            event.preventDefault();
-
-            const modal = document.getElementById('editModal');
-            const entryIndex = parseInt(modal.dataset.entryIndex);
-            const fieldType = modal.dataset.fieldType;
-            const textarea = document.getElementById('editTextarea');
-            const entry = currentEntries[entryIndex];
-
-            try {
-                // If changing date, need to delete old and create new
-                if (fieldType === 'date') {
-                    const newDate = textarea.value.trim();
-
-                    // Validate date format YYYY-MM-DD
-                    if (!newDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                        alert('Неправильный формат даты. Используйте YYYY-MM-DD (например: 2025-12-11)');
-                        return;
-                    }
-
-                    // Delete old entry
-                    await fetch(API_URL, {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            date: entry.date,
-                            surname: entry.surname
-                        })
-                    });
-
-                    // Create new entry with new date
-                    const updateData = {
-                        date: newDate,
-                        surname: entry.surname,
-                        rounds: entry.rounds,
-                        events: entry.events
-                    };
-
-                    // This will require a POST endpoint, so we'll use PUT with special handling
-                    const response = await fetch(API_URL, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(updateData)
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-
-                    closeEditModal();
-                    loadJournal();
-                    return;
-                }
-
-                let updateData = {
-                    date: entry.date,
-                    surname: entry.surname
-                };
-
-                if (fieldType === 'rounds') {
-                    updateData.rounds = textarea.value
-                        .split('\n')
-                        .map(line => line.trim())
-                        .filter(line => line);
-                } else if (fieldType === 'events') {
-                    updateData.events = textarea.value
-                        .split('\n')
-                        .map(line => {
-                            const match = line.match(/^(.+?)\s*-\s*(.+)$/);
-                            if (match) {
-                                return { time: match[1].trim(), description: match[2].trim() };
-                            }
-                            return null;
-                        })
-                        .filter(e => e !== null);
-                }
-
-                const response = await fetch(API_URL, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updateData)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                closeEditModal();
-                loadJournal();
-            } catch (error) {
-                alert(`Ошибка сохранения: ${error.message}`);
             }
         }
 
