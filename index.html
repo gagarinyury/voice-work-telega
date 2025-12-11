@@ -41,6 +41,126 @@
             font-size: 14px;
         }
 
+        .login-screen {
+            display: none;
+            text-align: center;
+            padding: 60px 20px;
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-screen.active {
+            display: flex;
+        }
+
+        .login-card {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .login-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .login-card h2 {
+            color: #2E5C9A;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+
+        .login-card p {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .login-form input {
+            padding: 12px;
+            border: 2px solid #E0E0E0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .login-form input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .login-form button {
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .login-form button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .login-form button:active {
+            transform: translateY(0);
+        }
+
+        .login-error {
+            color: #c33;
+            font-size: 14px;
+            padding: 10px;
+            background-color: #fee;
+            border: 1px solid #fcc;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .login-error.show {
+            display: block;
+        }
+
+        .access-level {
+            text-align: right;
+            padding: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .access-level.admin {
+            color: #d97706;
+        }
+
+        .logout-btn {
+            padding: 8px 16px;
+            background: #e5e7eb;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .logout-btn:hover {
+            background: #d1d5db;
+        }
+
         .loading {
             text-align: center;
             padding: 40px;
@@ -126,6 +246,165 @@
             font-family: 'Courier New', monospace;
         }
 
+        .edit-btn {
+            margin-left: 8px;
+            padding: 4px 8px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .edit-btn:hover {
+            background: #764ba2;
+        }
+
+        .edit-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .edit-modal.active {
+            display: flex;
+        }
+
+        .edit-modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .edit-modal-header {
+            font-size: 20px;
+            font-weight: 600;
+            color: #2E5C9A;
+            margin-bottom: 20px;
+        }
+
+        .edit-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .edit-form textarea {
+            padding: 12px;
+            border: 1px solid #E0E0E0;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .edit-form-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .edit-form-buttons button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .save-btn {
+            background: #059669;
+            color: white;
+        }
+
+        .save-btn:hover {
+            background: #047857;
+        }
+
+        .cancel-btn {
+            background: #e5e7eb;
+            color: #333;
+        }
+
+        .cancel-btn:hover {
+            background: #d1d5db;
+        }
+
+        .delete-btn {
+            padding: 4px 8px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-left: 4px;
+        }
+
+        .delete-btn:hover {
+            background: #dc2626;
+        }
+
+        .delete-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1001;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .delete-modal.active {
+            display: flex;
+        }
+
+        .delete-modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .delete-modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #ef4444;
+            margin-bottom: 15px;
+        }
+
+        .delete-modal-text {
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .delete-modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -172,20 +451,138 @@
 </head>
 <body>
     <div class="container">
-        <h1>Журнал передачи оборудования и обходов</h1>
-        <p class="subtitle">Автоматическое заполнение через Telegram бот</p>
-
-        <div id="loading" class="loading">
-            Загрузка данных...
+        <!-- Экран входа -->
+        <div id="loginScreen" class="login-screen active">
+            <div class="login-card">
+                <div class="login-icon">🔐</div>
+                <h2>Защищенный доступ</h2>
+                <p>Введите пароль для доступа к журналу</p>
+                <div id="loginError" class="login-error"></div>
+                <form id="loginForm" class="login-form" onsubmit="handleLogin(event)">
+                    <input type="password" id="passwordInput" placeholder="Пароль" autofocus required>
+                    <button type="submit">Войти</button>
+                </form>
+            </div>
         </div>
 
-        <div id="error" class="error" style="display: none;"></div>
+        <!-- Основной журнал -->
+        <div id="journalScreen" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div>
+                    <h1>Журнал передачи оборудования и обходов</h1>
+                    <p class="subtitle">Автоматическое заполнение через Telegram бот</p>
+                </div>
+                <div>
+                    <span class="access-level" id="accessLevel"></span>
+                    <button class="logout-btn" onclick="handleLogout()">Выход</button>
+                </div>
+            </div>
 
-        <div id="content"></div>
+            <div id="loading" class="loading">
+                Загрузка данных...
+            </div>
+
+            <div id="error" class="error" style="display: none;"></div>
+
+            <div id="content"></div>
+        </div>
+    </div>
+
+    <!-- Модальное окно редактирования -->
+    <div id="editModal" class="edit-modal">
+        <div class="edit-modal-content">
+            <div class="edit-modal-header" id="editModalTitle"></div>
+            <form id="editForm" class="edit-form" onsubmit="handleEditSave(event)">
+                <textarea id="editTextarea" required></textarea>
+                <div class="edit-form-buttons">
+                    <button type="button" class="cancel-btn" onclick="closeEditModal()">Отмена</button>
+                    <button type="submit" class="save-btn">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно удаления -->
+    <div id="deleteModal" class="delete-modal">
+        <div class="delete-modal-content">
+            <div class="delete-modal-title">⚠️ Удаление записи</div>
+            <div class="delete-modal-text">
+                Вы действительно хотите удалить эту запись?
+                <br><br>
+                <strong id="deleteModalInfo"></strong>
+                <br><br>
+                Это действие невозможно отменить.
+            </div>
+            <div class="delete-modal-buttons">
+                <button type="button" class="cancel-btn" onclick="closeDeleteModal()">Отмена</button>
+                <button type="button" class="delete-btn" onclick="confirmDelete()">Удалить</button>
+            </div>
+        </div>
     </div>
 
     <script>
         const API_URL = 'https://equipment-journal-worker.yurcheg13.workers.dev/api/journal';
+        const PASSWORDS = {
+            'Olivula2025@': 'user',
+            'Olivula2025@!': 'admin'
+        };
+
+        let currentAccessLevel = null;
+        let currentEntries = [];
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', () => {
+            const stored = localStorage.getItem('access_level');
+            if (stored && PASSWORDS[localStorage.getItem('password')] === stored) {
+                currentAccessLevel = stored;
+                showJournalScreen();
+                loadJournal();
+            }
+        });
+
+        function handleLogin(event) {
+            event.preventDefault();
+            const password = document.getElementById('passwordInput').value;
+            const accessLevel = PASSWORDS[password];
+
+            if (!accessLevel) {
+                const errorEl = document.getElementById('loginError');
+                errorEl.textContent = 'Неверный пароль';
+                errorEl.classList.add('show');
+                setTimeout(() => errorEl.classList.remove('show'), 3000);
+                return;
+            }
+
+            currentAccessLevel = accessLevel;
+            localStorage.setItem('access_level', accessLevel);
+            localStorage.setItem('password', password);
+
+            showJournalScreen();
+            loadJournal();
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('access_level');
+            localStorage.removeItem('password');
+            currentAccessLevel = null;
+            document.getElementById('loginScreen').classList.add('active');
+            document.getElementById('journalScreen').style.display = 'none';
+            document.getElementById('passwordInput').value = '';
+        }
+
+        function showJournalScreen() {
+            document.getElementById('loginScreen').classList.remove('active');
+            document.getElementById('journalScreen').style.display = 'block';
+
+            const accessText = currentAccessLevel === 'admin'
+                ? '👑 Администратор'
+                : '👁️ Просмотр';
+            const accessEl = document.getElementById('accessLevel');
+            accessEl.textContent = accessText;
+            if (currentAccessLevel === 'admin') {
+                accessEl.classList.add('admin');
+            }
+        }
 
         async function loadJournal() {
             const loadingEl = document.getElementById('loading');
@@ -199,11 +596,10 @@
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
 
-                const entries = await response.json();
-
+                currentEntries = await response.json();
                 loadingEl.style.display = 'none';
 
-                if (entries.length === 0) {
+                if (currentEntries.length === 0) {
                     contentEl.innerHTML = `
                         <div class="empty-state">
                             <div class="empty-state-icon">📋</div>
@@ -214,7 +610,7 @@
                     return;
                 }
 
-                renderTable(entries);
+                renderTable(currentEntries);
 
             } catch (error) {
                 loadingEl.style.display = 'none';
@@ -242,7 +638,7 @@
                     <tbody>
             `;
 
-            entries.forEach(entry => {
+            entries.forEach((entry, index) => {
                 const roundsHtml = entry.rounds && entry.rounds.length > 0
                     ? entry.rounds.map(time => time).join('<br>')
                     : '—';
@@ -271,13 +667,23 @@
                     </div>
                 `;
 
+                let roundsCell = roundsHtml;
+                let eventsCell = eventsHtml;
+                let surnameCell = `<span>${escapeHtml(entry.surname)}</span>`;
+
+                if (currentAccessLevel === 'admin') {
+                    roundsCell += `<button class="edit-btn" onclick="openEditModal(${index}, 'rounds')">✏️</button>`;
+                    eventsCell += `<button class="edit-btn" onclick="openEditModal(${index}, 'events')">✏️</button>`;
+                    surnameCell += `<button class="delete-btn" onclick="openDeleteModal(${index})" title="Удалить запись">🗑️</button>`;
+                }
+
                 html += `
                     <tr>
-                        <td class="surname-cell">${escapeHtml(entry.surname)}</td>
+                        <td class="surname-cell">${surnameCell}</td>
                         <td class="date-cell">${formatDate(entry.date)}</td>
                         <td class="items-cell">${itemsHtml}</td>
-                        <td class="rounds-cell">${roundsHtml}</td>
-                        <td class="events-cell">${eventsHtml}</td>
+                        <td class="rounds-cell">${roundsCell}</td>
+                        <td class="events-cell">${eventsCell}</td>
                         <td class="signature-cell">✅ Telegram</td>
                     </tr>
                 `;
@@ -289,6 +695,123 @@
             `;
 
             contentEl.innerHTML = html;
+        }
+
+        function openEditModal(entryIndex, fieldType) {
+            const entry = currentEntries[entryIndex];
+            const modal = document.getElementById('editModal');
+            const textarea = document.getElementById('editTextarea');
+            const title = document.getElementById('editModalTitle');
+
+            modal.dataset.entryIndex = entryIndex;
+            modal.dataset.fieldType = fieldType;
+
+            if (fieldType === 'rounds') {
+                title.textContent = `Редактирование обходов - ${entry.surname} (${formatDate(entry.date)})`;
+                textarea.value = entry.rounds ? entry.rounds.join('\n') : '';
+            } else {
+                title.textContent = `Редактирование событий - ${entry.surname} (${formatDate(entry.date)})`;
+                textarea.value = entry.events
+                    ? entry.events.map(e => `${e.time} - ${e.description}`).join('\n')
+                    : '';
+            }
+
+            modal.classList.add('active');
+            textarea.focus();
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+        }
+
+        let deleteData = null;
+
+        function openDeleteModal(entryIndex) {
+            const entry = currentEntries[entryIndex];
+            deleteData = entry;
+            const modal = document.getElementById('deleteModal');
+            const info = document.getElementById('deleteModalInfo');
+            info.textContent = `${entry.surname} - ${formatDate(entry.date)}`;
+            modal.classList.add('active');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.remove('active');
+            deleteData = null;
+        }
+
+        async function confirmDelete() {
+            if (!deleteData) return;
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date: deleteData.date,
+                        surname: deleteData.surname
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                closeDeleteModal();
+                loadJournal();
+            } catch (error) {
+                alert(`Ошибка удаления: ${error.message}`);
+            }
+        }
+
+        async function handleEditSave(event) {
+            event.preventDefault();
+
+            const modal = document.getElementById('editModal');
+            const entryIndex = parseInt(modal.dataset.entryIndex);
+            const fieldType = modal.dataset.fieldType;
+            const textarea = document.getElementById('editTextarea');
+            const entry = currentEntries[entryIndex];
+
+            let updateData = {
+                date: entry.date,
+                surname: entry.surname
+            };
+
+            if (fieldType === 'rounds') {
+                updateData.rounds = textarea.value
+                    .split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line);
+            } else {
+                updateData.events = textarea.value
+                    .split('\n')
+                    .map(line => {
+                        const match = line.match(/^(.+?)\s*-\s*(.+)$/);
+                        if (match) {
+                            return { time: match[1].trim(), description: match[2].trim() };
+                        }
+                        return null;
+                    })
+                    .filter(e => e !== null);
+            }
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updateData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                closeEditModal();
+                loadJournal();
+            } catch (error) {
+                alert(`Ошибка сохранения: ${error.message}`);
+            }
         }
 
         function formatDate(dateString) {
@@ -306,11 +829,12 @@
             return div.innerHTML;
         }
 
-        // Load on page load
-        loadJournal();
-
-        // Auto-refresh every 30 seconds
-        setInterval(loadJournal, 30000);
+        // Auto-refresh every 30 seconds если авторизованы
+        setInterval(() => {
+            if (currentAccessLevel) {
+                loadJournal();
+            }
+        }, 30000);
     </script>
 </body>
 </html>
