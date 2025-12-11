@@ -679,7 +679,10 @@
                 let surnameCell = `<span>${escapeHtml(entry.surname)}</span>`;
                 let dateCell = `${formatDate(entry.date)}`;
 
+                console.log('Access level:', currentAccessLevel, 'Admin check:', currentAccessLevel === 'admin');
+
                 if (currentAccessLevel === 'admin') {
+                    console.log('Adding edit buttons for admin');
                     roundsCell += `<button class="edit-btn" onclick="openEditModal(${index}, 'rounds')">✏️</button>`;
                     eventsCell += `<button class="edit-btn" onclick="openEditModal(${index}, 'events')">✏️</button>`;
                     dateCell += `<button class="edit-btn" onclick="openEditModal(${index}, 'date')">✏️</button>`;
